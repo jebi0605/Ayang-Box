@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ayang BOX - Song Maker 스타일 비트박스</title>
+<style>
+  /* 기본 스타일, Chrome Music Lab Song Maker 느낌 참고 */
+  body {
+    margin: 0; background: #222; color: #eee; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex; flex-direction: column; min-height: 100vh;
+  }
+  header {
+    background: #333;
+    text-align: center;
+    padding: 12px 0;
+    font-size: 1.6rem;
+    font-weight: 700;
+  }
+  header a {
+    color: #61dafb;
+    text-decoration: none;
+  }
+  main {
+    flex: 1;
+    display: flex;
+    padding: 12px;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  /* 그리드 영역 */
+  #sequencer {
+    display: grid;
+    grid-template-columns: 100px repeat(16, 36px);
+    gap: 8px;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  /* 악기명 */
+  .row-name {
+    line-height: 36px;
+    font-weight: 600;
+    user-select: none;
+    padding-left: 8px;
+  }
+  /* 스텝 박스 */
+  .step {
+    width: 36px; height: 36px;
+    border-radius: 6px;
+    background: #333;
+    cursor: pointer;
+    box-shadow: inset 0 0 5px #000;
+    transition: background-color 0.3s;
+  }
+  .step.active {
+    background-color: var(--color);
+    box-shadow: 0 0 8px var(--color);
+  }
+  .step.playing {
+    border: 2px solid #fff;
+  }
+  /* 플레이 버튼과 BPM 설정 */
+  #controls {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  button#playStopBtn {
+    padding: 10px 24px;
+    background: #61dafb;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    color: #222;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.3s;
+  }
+  button#playStopBtn:hover {
+    background: #21a1f1;
+  }
+  label {
+    user-select: none;
+    font-weight: 600;
+  }
+  input[type=range] {
+    cursor: pointer;
+    vertical-align: middle;
+  }
+  /* 악기 메뉴 토글 */
+  #menuToggleBtn {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    background: #61dafb;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+    z-index: 10;
+  }
+  /* 악기 선택 메뉴 */
+  #instrumentMenu {
+    position: fixed;
+    top: 48px;
+    right: 12px;
+    background: #333;
+    border-radius: 8px;
+    padding: 12px;
+    display: none;
+    width: 180px;
+    max-height: 70vh;
+    overflow-y: auto;
+    box-shadow: 0 0 12px #000;
+    z-index: 10;
+  }
+  #instrumentMenu.show {
+    display: block;
+  }
+  .instrument-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .instrument-row input[type=checkbox] {
+    margin-right: 8px;
+    width: 16px; height: 16px;
+    cursor: pointer;
+  }
+  /* 각 악기 고정 색상 */
+  /* chrome music lab 참고 색상 */
+  :root {
+    --kick: #e63946;
+    --snare: #f4a261;
+    --hihat: #e9c46a;
+    --clap: #2a9d8f;
+    --tom: #264653;
+    --ride: #a67b5b;
+    --crash: #8ab17d;
+    --shaker: #a3a380;
+    --cowbell: #d4a5a5;
+  }
+  /* 악기명 색 적용 */
+  .row-name.kick { color: var(--kick); }
+  .row-name.snare { color: var(--snare); }
+  .row-name.hihat { color: var(--hihat); }
+  .row-name.clap { color: var(--clap); }
+  .row-name.tom { color: var(--tom); }
+  .row-name.ride { color: var(--ride); }
+  .row-name.crash { color: var(--crash); }
+  .row-name.shaker { color: var(--shaker); }
+  .row-name.cowbell { color: var(--cowbell); }
+
+  /* 스텝 활성화시 해당 악기 색으로 설정 */
+  .step.active[data-instrument="kick"] { --color: var(--kick); }
+  .step.active[data-instrument="snare"] { --color: var(--snare); }
+  .step.active[data-instrument="hihat"] { --color: var(--hihat); }
+  .step.active[data-instrument="clap"] { --color: var(--clap); }
+  .step.active[data-instrument="tom"] { --color: var(--tom); }
+  .step.active[data-instrument="ride"] { --color: var(--ride); }
+  .step.active[data-instrument="crash"] { --color: var(--crash); }
+  .step.active[data-instrument="shaker"] { --color: var(--shaker); }
+  .step.active[data-instrument="cowbell"] { --color: var(--cowbell); }
+
+  /* 반응형 */
+  @media (max-width: 600px) {
+    #sequencer {
+      grid-template-columns: 90px repeat(8, 30px);
+      overflow-x: scroll;
+      font-size: 14px;
+    }
+    main {
+      padding: 8px;
+      gap: 8px;
+    }
+    button#playStopBtn {
+      padding: 8px 16px;
+      font-size: 1rem;
+    }
+    #instrumentMenu {
+      width: 90vw;
+      right: 5vw;
+      top: 48px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="https://www.youtube.com/channel/UC-IMNASTB0iloFQanL89b_w" target="_blank" rel="noopener noreferrer" aria-label="Ayang BOX YouTube Channel">AYANG BOX</a>
+</header>
+
+<button id="menuToggleBtn" aria-haspopup="true" aria-expanded="false" aria-controls="instrumentMenu">악기 메뉴</button>
+<div id="instrumentMenu" role="menu" aria-label="악기 선택 메뉴" tabindex="-1">
+  <!-- 악기 체크박스들 여기에 JS로 생성 -->
+</div>
+
+<main>
+  <div id="sequencer" aria-label="시퀀서 그리드" role="grid" aria-readonly="true">
+    <!-- 악기 그리드 여기에 JS로 생성 -->
+  </div>
+</main>
+
+<div id="controls" role="region" aria-label="재생 및 설정 컨트롤">
+  <button id="playStopBtn" aria-pressed="false" aria-label="재생/정지 토글">PLAY</button>
+  <label for="bpmRange">BPM: <span id="bpmValue">120</span></label>
+  <input type="range" id="bpmRange" min="60" max="180" value="120" aria-valuemin="60" aria-valuemax="180" aria-valuenow="120" />
+</div>
+
+<script>
+(() => {
+  const instrumentsOrder = ['kick','snare','hihat','clap','tom','ride','crash','shaker','cowbell'];
+  const instrumentNames = {
+    kick: 'Kick',
+    snare: 'Snare',
+    hihat: 'Hi-Hat',
+    clap: 'Clap',
+    tom: 'Tom',
+    ride: 'Ride',
+    crash: 'Crash',
+    shaker: 'Shaker',
+    cowbell: 'Cowbell'
+  };
+  const stepsCount = 16;
+
+  const sequencer = document.getElementById('sequencer');
+  const instrumentMenu = document.getElementById('instrumentMenu');
+  const menuToggleBtn = document.getElementById('menuToggleBtn');
+  const playStopBtn = document.getElementById('playStopBtn');
+  const bpmRange = document.getElementById('bpmRange');
+  const bpmValue = document.getElementById('bpmValue');
+
+  // 활성 악기 집합 (초기값 모두 활성)
+  let activeInstrumentsSet = new Set(instrumentsOrder);
+
+  // 패턴 상태: instrument -> [boolean x stepsCount]
+  let pattern = {};
+  instrumentsOrder.forEach(inst => {
+    pattern[inst] = new Array(stepsCount).fill(false);
+  });
+
+  // Audio Context 초기화
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  const audioCtx = new AudioContext();
+
+  // BPM, 재생 상태, 현재 스텝
+  let bpm = 120;
+  let isPlaying = false;
+  let currentStep = 0;
+  let intervalId = null;
+
+  // 각 악기별 사운드 재생 함수 (Web Audio API)
+  function playKick() {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+    gain.gain.setValueAtTime(1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.15);
+  }
+  function playSnare() {
+    const noiseBuffer = createNoiseBuffer(0.2);
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = noiseBuffer;
+    const noiseGain = audioCtx.createGain();
+    noiseGain.gain.setValueAtTime(1, audioCtx.currentTime);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+
+    const bandpass = audioCtx.createBiquadFilter();
+    bandpass.type = 'bandpass';
+    bandpass.frequency.setValueAtTime(1000, audioCtx.currentTime);
+
+    noise.connect(bandpass);
+    bandpass.connect(noiseGain);
+    noiseGain.connect(audioCtx.destination);
+
+    noise.start();
+    noise.stop(audioCtx.currentTime + 0.15);
+  }
+  function playHiHat() {
+    const noiseBuffer = createNoiseBuffer(0.05);
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = noiseBuffer;
+
+    const bandpass = audioCtx.createBiquadFilter();
+    bandpass.type = 'bandpass';
+    bandpass.frequency.setValueAtTime(8000, audioCtx.currentTime);
+
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+
+    noise.connect(bandpass);
+    bandpass.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    noise.start();
+    noise.stop(audioCtx.currentTime + 0.05);
+  }
+  // 기타 악기 (간단 변형으로 킥/스네어/하이햇 이용)
+  function playClap() { playSnare(); }
+  function playTom() { playKick(); }
+  function playRide() { playHiHat(); }
+  function playCrash() { playClap(); }
+  function playShaker() { playHiHat(); }
+  function playCowbell() { playClap(); }
+
+  // 노이즈 버퍼 생성 (스네어, 하이햇 등)
+  function createNoiseBuffer(duration) {
+    const sampleRate = audioCtx.sampleRate;
+    const bufferSize = sampleRate * duration;
+    const buffer = audioCtx.createBuffer(1, bufferSize, sampleRate);
+    const output = buffer.getChannelData(0);
+    for(let i = 0; i < bufferSize; i++) {
+      output[i] = Math.random() * 2 - 1;
+    }
+    return buffer;
+  }
+
+  const playFuncs = {
+    kick: playKick,
+    snare: playSnare,
+    hihat: playHiHat,
+    clap: playClap,
+    tom: playTom,
+    ride: playRide,
+    crash: playCrash,
+    shaker: playShaker,
+    cowbell: playCowbell
+  };
+
+  // 그리드 UI 생성
+  function buildGrid() {
+    sequencer.innerHTML = '';
+    // 헤더 행 (악기명 + 스텝 번호)
+    const headerRow = document.createElement('div');
+    headerRow.style.display = 'contents';
+    const emptyHeader = document.createElement('div');
+    headerRow.appendChild(emptyHeader);
+    for(let i=1; i<=stepsCount; i++) {
+      const stepHead = document.createElement('div');
+      stepHead.textContent = i;
+      stepHead.style.textAlign = 'center';
+      stepHead.style.color = '#aaa';
+      stepHead.style.fontSize = '0.75rem';
+      headerRow.appendChild(stepHead);
+    }
+    sequencer.appendChild(headerRow);
+
+    instrumentsOrder.forEach(inst => {
+      if(!activeInstrumentsSet.has(inst)) return;
+
+      // 악기명 칸
+      const nameDiv = document.createElement('div');
+      nameDiv.className = `row-name ${inst}`;
+      nameDiv.textContent = instrumentNames[inst];
+      sequencer.appendChild(nameDiv);
+
+      // 16 스텝 칸들
+      for(let i=0; i<stepsCount; i++) {
+        const step = document.createElement('div');
+        step.className = 'step';
+        step.dataset.instrument = inst;
+        step.dataset.step = i;
+        if(pattern[inst][i]) step.classList.add('active');
+        step.setAttribute('role','gridcell');
+        step.setAttribute('aria-checked', pattern[inst][i]);
+        step.tabIndex = 0;
+        step.style.setProperty('--color', getComputedStyle(document.documentElement).getPropertyValue(`--${inst}`).trim());
+
+        // 클릭 또는 키보드 엔터/스페이스로 토글
+        step.addEventListener('click', toggleStep);
+        step.addEventListener('keydown', e => {
+          if(e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggleStep.call(step);
+          }
+        });
+
+        sequencer.appendChild(step);
+      }
+    });
+  }
+
+  function toggleStep() {
+    const inst = this.dataset.instrument;
+    const stepIdx = +this.dataset.step;
+    pattern[inst][stepIdx] = !pattern[inst][stepIdx];
+    this.classList.toggle('active');
+    this.setAttribute('aria-checked', pattern[inst][stepIdx]);
+  }
+
+  // 악기 메뉴 생성
+  function buildInstrumentMenu() {
+    instrumentMenu.innerHTML = '';
+    instrumentsOrder.forEach(inst => {
+      const row = document.createElement('div');
+      row.className = 'instrument-row';
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = activeInstrumentsSet.has(inst);
+      checkbox.id = `chk-${inst}`;
+      checkbox.setAttribute('role', 'menuitemcheckbox');
+      checkbox.setAttribute('aria-checked', checkbox.checked);
+
+      checkbox.addEventListener('change', () => {
+        if(checkbox.checked) activeInstrumentsSet.add(inst);
+        else activeInstrumentsSet.delete(inst);
+        checkbox.setAttribute('aria-checked', checkbox.checked);
+        buildGrid();
+      });
+
+      const label = document.createElement('label');
+      label.setAttribute('for', checkbox.id);
+      label.textContent = instrumentNames[inst];
+      label.style.color = getComputedStyle(document.documentElement).getPropertyValue(`--${inst}`).trim();
+
+      row.appendChild(checkbox);
+      row.appendChild(label);
+      instrumentMenu.appendChild(row);
+    });
+  }
+
+  // 재생 제어
+  function playStep(stepIndex) {
+    instrumentsOrder.forEach(inst => {
+      if(!activeInstrumentsSet.has(inst)) return;
+      if(pattern[inst][stepIndex]) {
+        if(playFuncs[inst]) playFuncs[inst]();
+      }
+    });
+    highlightStep(stepIndex);
+  }
+
+  // 하이라이트 처리
+  function highlightStep(stepIndex) {
+    const steps = sequencer.querySelectorAll('.step');
+    steps.forEach(s => s.classList.remove('playing'));
+    instrumentsOrder.forEach(inst => {
+      if(!activeInstrumentsSet.has(inst)) return;
+      const stepElem = sequencer.querySelector(`.step[data-instrument="${inst}"][data-step="${stepIndex}"]`);
+      if(stepElem) stepElem.classList.add('playing');
+    });
+  }
+
+  function startSequencer() {
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const interval = (60 / bpm) / 4 * 1000; // 16분음표 간격
+    intervalId = setInterval(() => {
+      playStep(currentStep);
+      currentStep = (currentStep + 1) % stepsCount;
+    }, interval);
+    isPlaying = true;
+    playStopBtn.textContent = 'STOP';
+    playStopBtn.setAttribute('aria-pressed', 'true');
+  }
+  function stopSequencer() {
+    clearInterval(intervalId);
+    intervalId = null;
+    isPlaying = false;
+    currentStep = 0;
+    highlightStep(-1);
+    playStopBtn.textContent = 'PLAY';
+    playStopBtn.setAttribute('aria-pressed', 'false');
+  }
+
+  // BPM 변경 이벤트
+  bpmRange.addEventListener('input', () => {
+    bpm = +bpmRange.value;
+    bpmValue.textContent = bpm;
+    bpmRange.setAttribute('aria-valuenow', bpm);
+    if(isPlaying) {
+      stopSequencer();
+      startSequencer();
+    }
+  });
+
+  // 플레이 버튼 토글
+  playStopBtn.addEventListener('click', () => {
+    if(isPlaying) stopSequencer();
+    else startSequencer();
+  });
+
+  // 악기 메뉴 토글
+  menuToggleBtn.addEventListener('click', () => {
+    const shown = instrumentMenu.classList.toggle('show');
+    menuToggleBtn.setAttribute('aria-expanded', shown);
+    if(shown) instrumentMenu.focus();
+  });
+
+  // 바깥 클릭 시 악기 메뉴 닫기
+  document.addEventListener('click', (e) => {
+    if(!instrumentMenu.contains(e.target) && e.target !== menuToggleBtn) {
+      if(instrumentMenu.classList.contains('show')) {
+        instrumentMenu.classList.remove('show');
+        menuToggleBtn.setAttribute('aria-expanded', 'false');
+      }
+    }
+  });
+
+  // 초기 UI 구성
+  buildInstrumentMenu();
+  buildGrid();
+
+})();
+</script>
+
+</body>
+</html>
